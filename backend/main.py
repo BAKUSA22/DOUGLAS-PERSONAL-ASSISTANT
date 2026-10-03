@@ -726,6 +726,42 @@ def build_prompt(user_id: int, message: str):
 # HEALTH
 # ---------------------------------------------------------------------------
 
+@app.get("/api/gemini-models-check")
+def gemini_models_check():
+    import os
+    import requests
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    if not api_key:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured")
+
+    try:
+        r = requests.get(
+            "https://generativelanguage.googleapis.com/v1beta/models",
+            headers={"x-goog-api-key": api_key},
+            timeout=30,
+        )
+        data = r.json()
+        if r.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail=f"Gemini models API returned HTTP {r.status_code}: {data}",
+            )
+
+        models = []
+        for item in data.get("models", []):
+            models.append({
+                "name": item.get("name"),
+                "displayName": item.get("displayName"),
+                "supportedGenerationMethods": item.get("supportedGenerationMethods", []),
+            })
+
+        return {"count": len(models), "models": models}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Gemini models check failed: {exc}")
+
 @app.get("/health")
 def health():
     conn = get_db()
