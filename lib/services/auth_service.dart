@@ -6,7 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 class AuthService {
   static const String backendUrl = String.fromEnvironment(
     'BACKEND_URL',
-    defaultValue: 'http://172.17.100.13:8000',
+    defaultValue: 'https://douglas-personal-assistant-api.onrender.com',
   );
 
   static const String _tokenKey = 'douglas_ai_access_token';
