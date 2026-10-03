@@ -726,6 +726,72 @@ def build_prompt(user_id: int, message: str):
 # HEALTH
 # ---------------------------------------------------------------------------
 
+@app.get("/api/gemini-generate-check")
+def gemini_generate_check():
+    import os
+    import requests
+
+    api_key = os.getenv("GEMINI_API_KEY", "").strip()
+    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+
+    if not api_key:
+        raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured")
+
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+    try:
+        response = requests.post(
+            url,
+            params={"key": api_key},
+            headers={"Content-Type": "application/json"},
+            json={
+                "contents": [
+                    {
+                        "role": "user",
+                        "parts": [
+                            {"text": "Reply with exactly: GEMINI_DIRECT_OK"}
+                        ],
+                    }
+                ],
+                "generationConfig": {
+                    "temperature": 0.2,
+                    "maxOutputTokens": 32,
+                },
+            },
+            timeout=60,
+        )
+
+        data = response.json()
+
+        if response.status_code != 200:
+            raise HTTPException(
+                status_code=502,
+                detail={
+                    "gemini_http_status": response.status_code,
+                    "gemini_error": data,
+                },
+            )
+
+        text = ""
+        for candidate in data.get("candidates", []):
+            for part in candidate.get("content", {}).get("parts", []):
+                if part.get("text"):
+                    text += part["text"]
+
+        return {
+            "status": "ok",
+            "model": model,
+            "response": text.strip(),
+        }
+
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Gemini direct test failed: {exc}",
+        )
+
 @app.get("/api/gemini-models-check")
 def gemini_models_check():
     import os
