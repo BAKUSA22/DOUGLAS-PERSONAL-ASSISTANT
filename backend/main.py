@@ -892,6 +892,9 @@ def chat(
                 f"{model}:generateContent?key={api_key}"
             )
 
+            import time
+            gemini_started = time.perf_counter()
+
             response = requests.post(
                 ai_url,
                 headers={"Content-Type": "application/json"},
@@ -917,6 +920,13 @@ def chat(
                 },
                 timeout=180,
             )
+
+            gemini_elapsed = time.perf_counter() - gemini_started
+            print(
+                f"LATENCY_DIAGNOSTIC gemini_request_seconds={gemini_elapsed:.3f}",
+                flush=True,
+            )
+
             response.raise_for_status()
             data = response.json()
 
