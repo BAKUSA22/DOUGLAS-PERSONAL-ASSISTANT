@@ -92,6 +92,15 @@ class SQLiteConnection:
 class PostgresResult:
     def __init__(self, cursor):
         self.cursor = cursor
+        self._lastrowid = None
+
+    @property
+    def lastrowid(self):
+        if self._lastrowid is None:
+            row = self.cursor.fetchone()
+            if row is not None:
+                self._lastrowid = row.get("id")
+        return self._lastrowid
 
     def fetchone(self):
         row = self.cursor.fetchone()
@@ -111,6 +120,11 @@ class PostgresConnection:
         import psycopg2.extras
         sql = sql.replace("?", "%s")
         sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+
+        is_user_insert = sql.lstrip().upper().startswith("INSERT INTO USERS")
+        if is_user_insert and "RETURNING" not in sql.upper():
+            sql = sql.rstrip().rstrip(";") + " RETURNING id"
+
         cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
         cursor.execute(sql, params)
         return PostgresResult(cursor)
