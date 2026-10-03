@@ -828,7 +828,7 @@ def chat(
 
     prompt = build_prompt(user["id"], message)
 
-    provider = os.getenv("AI_PROVIDER", "openai_compatible").strip().lower()
+    provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
 
     try:
         if provider == "ollama":
@@ -863,12 +863,10 @@ def chat(
         elif provider == "openai_compatible":
             ai_url = os.getenv(
                 "AI_API_URL",
-                "https://api.groq.com/openai/v1/chat/completions",
+                "",
             ).strip()
             api_key = os.getenv("AI_API_KEY", "").strip()
-            if not api_key:
-                api_key = os.getenv("GROQ_API_KEY", "").strip()
-            model = os.getenv("AI_MODEL", "llama-3.1-8b-instant").strip()
+            model = os.getenv("AI_MODEL", "").strip()
 
             if not ai_url or not api_key or not model:
                 raise HTTPException(
