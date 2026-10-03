@@ -847,6 +847,61 @@ def chat(
             flush=True,
         )
 
+
+        if provider == "gemini":
+            api_key = os.getenv("GEMINI_API_KEY", "").strip()
+            model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+
+            if not api_key:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Gemini API key is not configured.",
+                )
+
+            ai_url = (
+                "https://generativelanguage.googleapis.com/v1beta/models/"
+                f"{model}:generateContent?key={api_key}"
+            )
+
+            response = requests.post(
+                ai_url,
+                headers={"Content-Type": "application/json"},
+                json={
+                    "system_instruction": {
+                        "parts": [
+                            {
+                                "text": "You are DOUGLAS AI, a helpful personal assistant."
+                            }
+                        ]
+                    },
+                    "contents": [
+                        {
+                            "parts": [
+                                {"text": prompt}
+                            ]
+                        }
+                    ],
+                    "generationConfig": {
+                        "temperature": 0.2,
+                        "maxOutputTokens": 256,
+                    },
+                },
+                timeout=180,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            candidates = data.get("candidates", [])
+            if not candidates:
+                reply = ""
+            else:
+                parts = candidates[0].get("content", {}).get("parts", [])
+                reply = " ".join(
+                    str(part.get("text", "")).strip()
+                    for part in parts
+                    if part.get("text")
+                ).strip()
+
     try:
         if provider == "ollama":
             ai_url = os.getenv(
