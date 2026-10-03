@@ -1,6 +1,7 @@
 import os
 import re
 import sqlite3
+from urllib.parse import urlparse
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional
@@ -8,6 +9,7 @@ from typing import Optional
 import requests
 from dotenv import load_dotenv
 from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 from pydantic import BaseModel
@@ -18,7 +20,12 @@ BASE_DIR = Path(__file__).resolve().parent
 MEMORY_DB = BASE_DIR / "douglas_memory.db"
 
 APP_NAME = "DOUGLAS AI Backend"
-JWT_SECRET = os.getenv("DOUGLAS_JWT_SECRET", "CHANGE_THIS_LOCAL_SECRET_BEFORE_PRODUCTION")
+JWT_SECRET = os.getenv("DOUGLAS_JWT_SECRET", "").strip()
+SMART_ENV = os.getenv("SMART_ENV", "development").strip().lower()
+if SMART_ENV == "production" and (not JWT_SECRET or JWT_SECRET == "CHANGE_THIS_LOCAL_SECRET_BEFORE_PRODUCTION"):
+    raise RuntimeError("DOUGLAS_JWT_SECRET must be set to a strong secret in production")
+if not JWT_SECRET:
+    JWT_SECRET = "CHANGE_THIS_LOCAL_SECRET_BEFORE_PRODUCTION"
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "1440"))
 
@@ -26,57 +33,170 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 app = FastAPI(title=APP_NAME)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[origin.strip() for origin in os.getenv("CORS_ORIGINS", "*").split(",") if origin.strip()],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # ---------------------------------------------------------------------------
 # DATABASE
 # ---------------------------------------------------------------------------
 
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
+
+
+class DatabaseConnection:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def execute(self, sql, params=()):
+        if DATABASE_URL:
+            import psycopg2
+            sql = sql.replace("?", "%s")
+            sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+            sql = sql.replace("INTEGER PRIMARY KEY", "SERIAL PRIMARY KEY")
+            sql = sql.replace("CURRENT_TIMESTAMP", "CURRENT_TIMESTAMP")
+            return self.connection.cursor_factory(psycopg2.extras.RealDictCursor).execute(sql, params)
+        return self.connection.execute(sql, params)
+
+
 def get_db():
+    if DATABASE_URL:
+        import psycopg2
+        import psycopg2.extras
+        conn = psycopg2.connect(DATABASE_URL)
+        return PostgresConnection(conn)
     conn = sqlite3.connect(MEMORY_DB)
     conn.row_factory = sqlite3.Row
-    return conn
+    return SQLiteConnection(conn)
+
+
+class SQLiteConnection:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def execute(self, sql, params=()):
+        return self.connection.execute(sql, params)
+
+    def commit(self):
+        self.connection.commit()
+
+    def close(self):
+        self.connection.close()
+
+
+class PostgresResult:
+    def __init__(self, cursor):
+        self.cursor = cursor
+
+    def fetchone(self):
+        row = self.cursor.fetchone()
+        if row is None:
+            return None
+        return row
+
+    def fetchall(self):
+        return self.cursor.fetchall()
+
+
+class PostgresConnection:
+    def __init__(self, connection):
+        self.connection = connection
+
+    def execute(self, sql, params=()):
+        import psycopg2.extras
+        sql = sql.replace("?", "%s")
+        sql = sql.replace("INTEGER PRIMARY KEY AUTOINCREMENT", "SERIAL PRIMARY KEY")
+        cursor = self.connection.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cursor.execute(sql, params)
+        return PostgresResult(cursor)
+
+    def commit(self):
+        self.connection.commit()
+
+    def close(self):
+        self.connection.close()
 
 
 def init_memory():
     conn = get_db()
     try:
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS users (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
-                password_hash TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                active INTEGER NOT NULL DEFAULT 1
+        if DATABASE_URL:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id SERIAL PRIMARY KEY,
+                    username TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    active INTEGER NOT NULL DEFAULT 1
+                )
+                """
             )
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS conversation_memory (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                role TEXT NOT NULL,
-                message TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS conversation_memory (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER,
+                    role TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+                """
             )
-            """
-        )
-
-        conn.execute(
-            """
-            CREATE TABLE IF NOT EXISTS personal_memory (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                user_id INTEGER,
-                memory TEXT NOT NULL,
-                created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
-                FOREIGN KEY(user_id) REFERENCES users(id)
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS personal_memory (
+                    id SERIAL PRIMARY KEY,
+                    user_id INTEGER,
+                    memory TEXT NOT NULL,
+                    created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+                """
             )
-            """
-        )
+        else:
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS users (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    username TEXT NOT NULL UNIQUE,
+                    password_hash TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    active INTEGER NOT NULL DEFAULT 1
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS conversation_memory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    role TEXT NOT NULL,
+                    message TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS personal_memory (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id INTEGER,
+                    memory TEXT NOT NULL,
+                    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    FOREIGN KEY(user_id) REFERENCES users(id)
+                )
+                """
+            )
 
         conn.execute(
             """
@@ -124,6 +244,35 @@ class ChatResponse(BaseModel):
 
 class PersonalMemoryRequest(BaseModel):
     memory: str
+
+
+
+def automatic_memory(user_id: int, message: str):
+    text = message.strip()
+    if not text:
+        return
+
+    lowered = text.lower()
+
+    memory_triggers = (
+        "remember that ",
+        "remember my ",
+        "my name is ",
+        "i am ",
+        "i'm ",
+        "i live in ",
+        "i work at ",
+        "i work for ",
+        "my goal is ",
+        "i like ",
+        "i prefer ",
+    )
+
+    if not lowered.startswith(memory_triggers):
+        return
+
+    add_personal_memory(user_id, text)
+
 
 
 # ---------------------------------------------------------------------------
@@ -580,7 +729,7 @@ def health():
     return {
         "status": "ok",
         "service": APP_NAME,
-        "database": "sqlite-local",
+        "database": "postgresql" if DATABASE_URL else "sqlite-local",
         "multi_user": True,
         "users": int(users),
         "conversation_records": int(conversations),
@@ -665,41 +814,96 @@ def chat(
 
     prompt = build_prompt(user["id"], message)
 
-    ollama_url = os.getenv(
-        "OLLAMA_URL",
-        "http://127.0.0.1:11434/api/generate",
-    )
-
-    model = os.getenv(
-        "OLLAMA_MODEL",
-        "qwen2.5:1.5b",
-    )
-
-    payload = {
-        "model": model,
-        "prompt": prompt,
-        "stream": False,
-        "options": {
-            "temperature": 0.2,
-            "num_predict": 256,
-        },
-    }
+    provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
 
     try:
-        response = requests.post(
-            ollama_url,
-            json=payload,
-            timeout=180,
-        )
-        response.raise_for_status()
-        data = response.json()
+        if provider == "ollama":
+            ai_url = os.getenv(
+                "OLLAMA_URL",
+                "http://127.0.0.1:11434/api/generate",
+            )
+            model = os.getenv(
+                "OLLAMA_MODEL",
+                "qwen2.5:1.5b",
+            )
+
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.2,
+                    "num_predict": 256,
+                },
+            }
+
+            response = requests.post(
+                ai_url,
+                json=payload,
+                timeout=180,
+            )
+            response.raise_for_status()
+            data = response.json()
+            reply = str(data.get("response", "")).strip()
+
+        elif provider == "openai_compatible":
+            ai_url = os.getenv("AI_API_URL", "").strip()
+            api_key = os.getenv("AI_API_KEY", "").strip()
+            model = os.getenv("AI_MODEL", "").strip()
+
+            if not ai_url or not api_key or not model:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Production AI provider is not configured.",
+                )
+
+            response = requests.post(
+                ai_url,
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are DOUGLAS AI, a helpful personal assistant.",
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        },
+                    ],
+                    "temperature": 0.2,
+                    "max_tokens": 256,
+                },
+                timeout=180,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            choices = data.get("choices", [])
+            if not choices:
+                reply = ""
+            else:
+                reply = str(
+                    choices[0].get("message", {}).get("content", "")
+                ).strip()
+
+        else:
+            raise HTTPException(
+                status_code=500,
+                detail=f"Unsupported AI_PROVIDER: {provider}",
+            )
+
+    except HTTPException:
+        raise
     except requests.RequestException as exc:
         raise HTTPException(
             status_code=503,
             detail=f"AI inference service unavailable: {exc}",
         )
-
-    reply = str(data.get("response", "")).strip()
 
     if not reply:
         raise HTTPException(
@@ -708,7 +912,8 @@ def chat(
         )
 
     save_memory(user["id"], "user", message)
+    automatic_memory(user["id"], message)
     save_memory(user["id"], "assistant", reply)
-    store_automatic_memories(user["id"], message)
 
+    return ChatResponse(response=reply)
     return ChatResponse(response=reply)
