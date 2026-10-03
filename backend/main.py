@@ -828,7 +828,7 @@ def chat(
 
     prompt = build_prompt(user["id"], message)
 
-    provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
+    provider = os.getenv("AI_PROVIDER", "openai_compatible").strip().lower()
 
     try:
         if provider == "ollama":
