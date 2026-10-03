@@ -829,6 +829,7 @@ def chat(
     prompt = build_prompt(user["id"], message)
 
     provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
+    print(f"DOUGLAS AI provider selected: {provider}", flush=True)
 
     try:
         if provider == "ollama":
