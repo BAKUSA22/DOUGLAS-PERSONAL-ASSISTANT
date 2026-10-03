@@ -912,7 +912,7 @@ def chat(
                     ],
                     "generationConfig": {
                         "temperature": 0.2,
-                        "maxOutputTokens": 256,
+                        "maxOutputTokens": 128,
                     },
                 },
                 timeout=180,
