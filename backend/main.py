@@ -847,8 +847,37 @@ def chat(
             flush=True,
         )
 
+    try:
+        if provider == "ollama":
+            ai_url = os.getenv(
+                "OLLAMA_URL",
+                "http://127.0.0.1:11434/api/generate",
+            )
+            model = os.getenv(
+                "OLLAMA_MODEL",
+                "qwen2.5:1.5b",
+            )
 
-        if provider == "gemini":
+            payload = {
+                "model": model,
+                "prompt": prompt,
+                "stream": False,
+                "options": {
+                    "temperature": 0.2,
+                    "num_predict": 256,
+                },
+            }
+
+            response = requests.post(
+                ai_url,
+                json=payload,
+                timeout=180,
+            )
+            response.raise_for_status()
+            data = response.json()
+            reply = str(data.get("response", "")).strip()
+
+        elif provider == "gemini":
             api_key = os.getenv("GEMINI_API_KEY", "").strip()
             model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
 
@@ -901,36 +930,6 @@ def chat(
                     for part in parts
                     if part.get("text")
                 ).strip()
-
-    try:
-        if provider == "ollama":
-            ai_url = os.getenv(
-                "OLLAMA_URL",
-                "http://127.0.0.1:11434/api/generate",
-            )
-            model = os.getenv(
-                "OLLAMA_MODEL",
-                "qwen2.5:1.5b",
-            )
-
-            payload = {
-                "model": model,
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.2,
-                    "num_predict": 256,
-                },
-            }
-
-            response = requests.post(
-                ai_url,
-                json=payload,
-                timeout=180,
-            )
-            response.raise_for_status()
-            data = response.json()
-            reply = str(data.get("response", "")).strip()
 
         elif provider == "openai_compatible":
             ai_url = os.getenv(
