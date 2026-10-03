@@ -5,6 +5,26 @@ import 'package:speech_to_text/speech_to_text.dart' as stt;
 import '../models/message.dart';
 import '../services/ai_service.dart';
 
+class _InstallAppButton extends StatelessWidget {
+  const _InstallAppButton();
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      tooltip: 'Install DOUGLAS AI',
+      icon: const Icon(Icons.install_mobile_rounded, size: 21),
+      onPressed: () {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('DOUGLAS AI is ready to install on this device.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+      },
+    );
+  }
+}
+
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key});
 
@@ -321,22 +341,17 @@ class _ChatScreenState extends State<ChatScreen>
               children: [
                 Text(
                   'DOUGLAS AI',
-                  style: TextStyle(
-                    fontSize: 17,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: TextStyle(fontSize: 17, fontWeight: FontWeight.w700),
                 ),
                 Text(
                   'Digital Human Assistant',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: Color(0xFF98A2B3),
-                  ),
+                  style: TextStyle(fontSize: 11, color: Color(0xFF98A2B3)),
                 ),
               ],
             ),
           ],
         ),
+        actions: const [_InstallAppButton()],
       ),
       body: Column(
         children: [
@@ -349,10 +364,7 @@ class _ChatScreenState extends State<ChatScreen>
               decoration: BoxDecoration(
                 color: const Color(0xFF101722),
                 borderRadius: BorderRadius.circular(28),
-                border: Border.all(
-                  color: const Color(0xFF263142),
-                  width: 1,
-                ),
+                border: Border.all(color: const Color(0xFF263142), width: 1),
                 boxShadow: [
                   BoxShadow(
                     blurRadius: 30,
@@ -369,30 +381,26 @@ class _ChatScreenState extends State<ChatScreen>
                     builder: (context, child) {
                       final t = _idleController.value;
                       final baseBreathing = 1.0 + (t * 0.008);
-                      final speakingPulse =
-                          _avatarState == 'SPEAKING'
-                              ? 1.0 +
-                                  ((t * 0.025) *
-                                      (1.0 + (_speechIntensity * 0.35)))
-                              : 1.0;
-                      final thinkingPulse =
-                          _avatarState == 'THINKING'
-                              ? 1.0 + ((t * 0.012))
-                              : 1.0;
+                      final speakingPulse = _avatarState == 'SPEAKING'
+                          ? 1.0 +
+                                ((t * 0.025) *
+                                    (1.0 + (_speechIntensity * 0.35)))
+                          : 1.0;
+                      final thinkingPulse = _avatarState == 'THINKING'
+                          ? 1.0 + ((t * 0.012))
+                          : 1.0;
                       final breathing =
                           baseBreathing * speakingPulse * thinkingPulse;
 
-                      final attentionShift =
-                          _avatarState == 'LISTENING'
-                              ? -0.004
-                              : _avatarState == 'THINKING'
-                                  ? 0.003
-                                  : _avatarState == 'SPEAKING'
-                                      ? 0.002
-                                      : 0.0;
+                      final attentionShift = _avatarState == 'LISTENING'
+                          ? -0.004
+                          : _avatarState == 'THINKING'
+                          ? 0.003
+                          : _avatarState == 'SPEAKING'
+                          ? 0.002
+                          : 0.0;
 
-                      final sway =
-                          ((t - 0.5) * 0.006) + attentionShift;
+                      final sway = ((t - 0.5) * 0.006) + attentionShift;
 
                       return Transform.translate(
                         offset: Offset(sway * 100, 0),
@@ -440,10 +448,11 @@ class _ChatScreenState extends State<ChatScreen>
                             boxShadow: [
                               BoxShadow(
                                 blurRadius: 10,
-                                color: (_sending
-                                        ? const Color(0xFFFFC857)
-                                        : const Color(0xFF32D583))
-                                    .withValues(alpha: 0.55),
+                                color:
+                                    (_sending
+                                            ? const Color(0xFFFFC857)
+                                            : const Color(0xFF32D583))
+                                        .withValues(alpha: 0.55),
                               ),
                             ],
                           ),
@@ -453,10 +462,10 @@ class _ChatScreenState extends State<ChatScreen>
                           _avatarState == 'THINKING'
                               ? 'DOUGLAS is thinking...'
                               : _avatarState == 'LISTENING'
-                                  ? 'DOUGLAS is listening...'
-                                  : _avatarState == 'SPEAKING'
-                                      ? 'DOUGLAS is speaking...'
-                                      : 'DOUGLAS is ready',
+                              ? 'DOUGLAS is listening...'
+                              : _avatarState == 'SPEAKING'
+                              ? 'DOUGLAS is speaking...'
+                              : 'DOUGLAS is ready',
                           style: const TextStyle(
                             color: Colors.white,
                             fontSize: 13,
@@ -476,9 +485,7 @@ class _ChatScreenState extends State<ChatScreen>
               width: double.infinity,
               decoration: const BoxDecoration(
                 color: Color(0xFFF5F7FB),
-                borderRadius: BorderRadius.vertical(
-                  top: Radius.circular(28),
-                ),
+                borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
               ),
               child: Column(
                 children: [
@@ -508,9 +515,7 @@ class _ChatScreenState extends State<ChatScreen>
                                 tooltip: _isListening
                                     ? 'Stop listening'
                                     : 'Talk to DOUGLAS',
-                                onPressed: _sending
-                                    ? null
-                                    : _toggleListening,
+                                onPressed: _sending ? null : _toggleListening,
                                 icon: Icon(
                                   _isListening
                                       ? Icons.mic_rounded
@@ -532,8 +537,7 @@ class _ChatScreenState extends State<ChatScreen>
                                 hintText: 'Talk to DOUGLAS...',
                                 filled: true,
                                 fillColor: Colors.white,
-                                contentPadding:
-                                    const EdgeInsets.symmetric(
+                                contentPadding: const EdgeInsets.symmetric(
                                   horizontal: 18,
                                   vertical: 14,
                                 ),
@@ -570,7 +574,6 @@ class _ChatScreenState extends State<ChatScreen>
       ),
     );
   }
-
 }
 
 class _MessageBubble extends StatelessWidget {
