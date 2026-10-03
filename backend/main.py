@@ -861,9 +861,14 @@ def chat(
             reply = str(data.get("response", "")).strip()
 
         elif provider == "openai_compatible":
-            ai_url = os.getenv("AI_API_URL", "").strip()
+            ai_url = os.getenv(
+                "AI_API_URL",
+                "https://api.groq.com/openai/v1/chat/completions",
+            ).strip()
             api_key = os.getenv("AI_API_KEY", "").strip()
-            model = os.getenv("AI_MODEL", "").strip()
+            if not api_key:
+                api_key = os.getenv("GROQ_API_KEY", "").strip()
+            model = os.getenv("AI_MODEL", "llama-3.1-8b-instant").strip()
 
             if not ai_url or not api_key or not model:
                 raise HTTPException(
