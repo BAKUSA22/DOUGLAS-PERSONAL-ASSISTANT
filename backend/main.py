@@ -732,7 +732,7 @@ def gemini_generate_check():
     import requests
 
     api_key = os.getenv("GEMINI_API_KEY", "").strip()
-    model = os.getenv("GEMINI_MODEL", "gemini-2.5-flash").strip()
+    model = os.getenv("GEMINI_MODEL", "models/gemini-2.5-flash-lite").strip()
 
     if not api_key:
         raise HTTPException(status_code=503, detail="GEMINI_API_KEY is not configured")
