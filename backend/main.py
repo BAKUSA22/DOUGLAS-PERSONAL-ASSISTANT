@@ -941,6 +941,50 @@ def chat(
                     if part.get("text")
                 ).strip()
 
+        elif provider == "groq":
+            api_key = os.getenv("GROQ_API_KEY", "").strip()
+            model = os.getenv("GROQ_MODEL", "llama-3.1-8b-instant").strip()
+
+            if not api_key:
+                raise HTTPException(
+                    status_code=503,
+                    detail="Groq API key is not configured.",
+                )
+
+            response = requests.post(
+                "https://api.groq.com/openai/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {api_key}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "model": model,
+                    "messages": [
+                        {
+                            "role": "system",
+                            "content": "You are DOUGLAS AI, a helpful personal assistant.",
+                        },
+                        {
+                            "role": "user",
+                            "content": prompt,
+                        },
+                    ],
+                    "temperature": 0.2,
+                    "max_tokens": 128,
+                },
+                timeout=60,
+            )
+            response.raise_for_status()
+            data = response.json()
+
+            choices = data.get("choices", [])
+            if not choices:
+                reply = ""
+            else:
+                reply = str(
+                    choices[0].get("message", {}).get("content", "")
+                ).strip()
+
         elif provider == "openai_compatible":
             ai_url = os.getenv(
                 "AI_API_URL",
