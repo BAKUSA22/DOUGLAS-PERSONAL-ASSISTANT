@@ -831,6 +831,22 @@ def chat(
     provider = os.getenv("AI_PROVIDER", "ollama").strip().lower()
     print(f"DOUGLAS AI provider selected: {provider}", flush=True)
 
+    if provider == "ollama":
+        print(
+            "DOUGLAS AI Ollama runtime: "
+            f"url={os.getenv('OLLAMA_URL', '<default>')} "
+            f"model={os.getenv('OLLAMA_MODEL', '<default>')}",
+            flush=True,
+        )
+    elif provider == "openai_compatible":
+        print(
+            "DOUGLAS AI OpenAI-compatible runtime: "
+            f"url={os.getenv('AI_API_URL', '<missing>')} "
+            f"model={os.getenv('AI_MODEL', '<missing>')} "
+            "api_key=<hidden>",
+            flush=True,
+        )
+
     try:
         if provider == "ollama":
             ai_url = os.getenv(
