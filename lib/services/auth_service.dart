@@ -92,6 +92,20 @@ class AuthService {
     return prefs.getString(_tokenKey);
   }
 
+  Future<void> ensureGuestSession() async {
+    final existingToken = await getToken();
+
+    if (existingToken != null && existingToken.isNotEmpty) {
+      return;
+    }
+
+    final random = DateTime.now().microsecondsSinceEpoch;
+    final username = 'guest_$random';
+    final password = 'Gst_${random}_DouglasAI!';
+
+    await register(username: username, password: password);
+  }
+
   Future<String?> getUsername() async {
     final prefs = await SharedPreferences.getInstance();
     return prefs.getString(_usernameKey);

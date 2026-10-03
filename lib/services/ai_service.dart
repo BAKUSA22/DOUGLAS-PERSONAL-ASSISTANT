@@ -18,12 +18,12 @@ class LocalAiService implements AiService {
   String get _backendUrl => AuthService.backendUrl;
 
   Future<Map<String, String>> _authHeaders() async {
+    await _authService.ensureGuestSession();
+
     final token = await _authService.getToken();
 
     if (token == null || token.isEmpty) {
-      throw Exception(
-        'Your DOUGLAS AI session has expired. Please sign in again.',
-      );
+      throw Exception('DOUGLAS AI could not create a guest session.');
     }
 
     return {
