@@ -1,3 +1,6 @@
+import 'dart:math';
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
@@ -57,6 +60,7 @@ class _ChatScreenState extends State<ChatScreen>
 
   String get _avatarState => _avatarMode;
   late final AnimationController _idleController;
+  Timer? _greetingTimer;
 
   @override
   void initState() {
@@ -64,6 +68,13 @@ class _ChatScreenState extends State<ChatScreen>
 
     _initializeSpeech();
     _initializeTts();
+
+    _greetingTimer = Timer(const Duration(milliseconds: 900), () {
+      if (!mounted) return;
+      _speakResponse(
+        'Hello Douglas. I am DOUGLAS AI. I am ready to assist you.',
+      );
+    });
 
     _idleController = AnimationController(
       vsync: this,
@@ -310,6 +321,7 @@ class _ChatScreenState extends State<ChatScreen>
   @override
   void dispose() {
     _tts.stop();
+    _greetingTimer?.cancel();
     _idleController.dispose();
     _controller.dispose();
     _scrollController.dispose();
@@ -379,8 +391,8 @@ class _ChatScreenState extends State<ChatScreen>
                   AnimatedBuilder(
                     animation: _idleController,
                     builder: (context, child) {
-                      final t = _idleController.value;
-                      final baseBreathing = 1.0 + (t * 0.008);
+                      final t = _idleController.value * 2 * pi;
+                      final baseBreathing = 1.0 + (sin(t) * 0.010);
                       final speakingPulse = _avatarState == 'SPEAKING'
                           ? 1.0 +
                                 ((t * 0.025) *
@@ -400,10 +412,10 @@ class _ChatScreenState extends State<ChatScreen>
                           ? 0.002
                           : 0.0;
 
-                      final sway = ((t - 0.5) * 0.006) + attentionShift;
+                      final sway = (sin(t * 0.5) * 0.004) + attentionShift;
 
                       return Transform.translate(
-                        offset: Offset(sway * 100, 0),
+                        offset: Offset(sway * 120, sin(t * 0.75) * 1.5),
                         child: Transform.scale(
                           scale: breathing,
                           alignment: Alignment.center,

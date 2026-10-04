@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'screens/chat_screen.dart';
@@ -35,6 +37,7 @@ class DouglasStartupScreen extends StatefulWidget {
 class _DouglasStartupScreenState extends State<DouglasStartupScreen>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
+  Timer? _navigationTimer;
 
   @override
   void initState() {
@@ -45,7 +48,7 @@ class _DouglasStartupScreenState extends State<DouglasStartupScreen>
       duration: const Duration(milliseconds: 950),
     )..repeat();
 
-    Future.delayed(const Duration(milliseconds: 1500), () {
+    _navigationTimer = Timer(const Duration(milliseconds: 1500), () {
       if (!mounted) return;
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
@@ -61,6 +64,7 @@ class _DouglasStartupScreenState extends State<DouglasStartupScreen>
 
   @override
   void dispose() {
+    _navigationTimer?.cancel();
     _controller.dispose();
     super.dispose();
   }
