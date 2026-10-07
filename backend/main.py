@@ -8,7 +8,7 @@ from typing import Optional
 
 import requests
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, Header, HTTPException, status
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from jose import JWTError, jwt
 from passlib.context import CryptContext
@@ -824,6 +824,157 @@ def delete_personal_memory(user=Depends(get_current_user)):
 # ---------------------------------------------------------------------------
 # CHAT
 # ---------------------------------------------------------------------------
+
+
+@app.post("/api/vision")
+async def analyze_vision(
+    request: Request,
+    user=Depends(get_current_user),
+):
+    """
+    Stage 5Q: real Douglas visual understanding.
+
+    The Android app sends a JPEG frame to this authenticated endpoint.
+    GROQ_API_KEY remains server-side.
+    """
+    import base64
+
+    content_type = request.headers.get("content-type", "").lower()
+
+    if "image/jpeg" not in content_type:
+        raise HTTPException(
+            status_code=415,
+            detail="DOUGLAS vision expects an image/jpeg frame.",
+        )
+
+    image_bytes = await request.body()
+
+    if not image_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail="DOUGLAS vision received an empty image.",
+        )
+
+    if len(image_bytes) > 20 * 1024 * 1024:
+        raise HTTPException(
+            status_code=413,
+            detail="DOUGLAS vision image exceeds the 20 MB limit.",
+        )
+
+    api_key = os.getenv("GROQ_API_KEY", "").strip()
+
+    if not api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="DOUGLAS vision is not configured.",
+        )
+
+    vision_model = os.getenv(
+        "GROQ_VISION_MODEL",
+        "qwen/qwen3.8-27b",
+    ).strip()
+
+    encoded_image = base64.b64encode(image_bytes).decode("ascii")
+
+    prompt = (
+        "You are DOUGLAS AI, a helpful personal visual assistant. "
+        "Look carefully at the supplied camera image and describe "
+        "what is actually visible. Identify important objects, "
+        "people, actions, surroundings, visible text, and obvious "
+        "safety-relevant details when present. "
+        "Do not invent details that cannot be seen. "
+        "Keep the answer natural, concise, and suitable for being "
+        "spoken aloud by Douglas."
+    )
+
+    payload = {
+        "model": vision_model,
+        "messages": [
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": prompt,
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {
+                            "url": (
+                                "data:image/jpeg;base64,"
+                                + encoded_image
+                            ),
+                        },
+                    },
+                ],
+            }
+        ],
+        "temperature": 0.7,
+        "max_completion_tokens": 512,
+        "stream": False,
+    }
+
+    try:
+        response = requests.post(
+            "https://api.groq.com/openai/v1/chat/completions",
+            headers={
+                "Authorization": f"Bearer {api_key}",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+            timeout=90,
+        )
+    except requests.RequestException as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Vision provider connection failed: {exc}",
+        ) from exc
+
+    if response.status_code != 200:
+        detail = "Groq vision provider returned an error."
+
+        try:
+            provider_data = response.json()
+            provider_error = provider_data.get("error")
+
+            if isinstance(provider_error, dict):
+                message = provider_error.get("message")
+
+                if isinstance(message, str) and message.strip():
+                    detail = message.strip()
+        except Exception:
+            pass
+
+        raise HTTPException(
+            status_code=502,
+            detail=detail,
+        )
+
+    try:
+        data = response.json()
+        choices = data.get("choices", [])
+
+        if not choices:
+            raise ValueError("No choices returned.")
+
+        message = choices[0].get("message", {})
+        result = message.get("content")
+
+        if not isinstance(result, str) or not result.strip():
+            raise ValueError("Empty vision response.")
+
+        return {
+            "response": result.strip(),
+            "vision": True,
+            "model": vision_model,
+        }
+
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Invalid vision response: {exc}",
+        ) from exc
+
 
 @app.post("/api/chat", response_model=ChatResponse)
 def chat(
